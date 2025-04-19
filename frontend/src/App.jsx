@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Box, Button, Group, MultiSelect, NumberInput, TextInput, Title, Text, Stack, Card, ActionIcon } from '@mantine/core';
-import { IconTrash } from '@tabler/icons-react';
+import { Box, Button, Group, MultiSelect, NumberInput, TextInput, Title, Text, Stack, Card, ActionIcon, Modal, Select, Table, SegmentedControl } from '@mantine/core';
+import { TimeInput } from '@mantine/dates';
+import { IconTrash, IconDownload, IconClock } from '@tabler/icons-react';
 
 function App() {
   const [columns, setColumns] = useState([]);
@@ -9,10 +10,18 @@ function App() {
   const [conditions, setConditions] = useState({});
   const [segmentName, setSegmentName] = useState('');
   const [stats, setStats] = useState(null);
+  const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
+  const [selectedSegment, setSelectedSegment] = useState(null);
+  const [scheduleInterval, setScheduleInterval] = useState('24');
+  const [exportFormat, setExportFormat] = useState('csv');
+  const [schedules, setSchedules] = useState([]);
+  const [scheduleType, setScheduleType] = useState('interval');
+  const [scheduleTime, setScheduleTime] = useState('12:00');
 
   useEffect(() => {
     loadColumns();
     loadSegments();
+    loadSchedules();
   }, []);
 
   useEffect(() => {
@@ -33,6 +42,11 @@ function App() {
     setSegments(response.data);
   };
 
+  const loadSchedules = async () => {
+    const response = await axios.get('http://localhost:8000/api/schedules');
+    setSchedules(response.data);
+  };
+
   const evaluateSegment = async () => {
     const response = await axios.post('http://localhost:8000/api/evaluate-segment', conditions);
     setStats(response.data);
@@ -46,6 +60,32 @@ function App() {
     });
     loadSegments();
     setSegmentName('');
+  };
+
+  const handleExportNow = async (segmentName) => {
+    await axios.post('http://localhost:8000/api/export-now', {
+      segment_name: segmentName,
+      format: exportFormat
+    });
+  };
+
+  const handleScheduleExport = async () => {
+    if (!selectedSegment) return;
+    
+    const scheduleData = {
+      segment_name: selectedSegment,
+      format: exportFormat,
+    };
+
+    if (scheduleType === 'interval') {
+      scheduleData.interval_hours = parseInt(scheduleInterval);
+    } else {
+      scheduleData.run_time = scheduleTime;
+    }
+    
+    await axios.post('http://localhost:8000/api/schedule-export', scheduleData);
+    loadSchedules();
+    setScheduleModalOpen(false);
   };
 
   const addCondition = (column) => {
@@ -157,13 +197,106 @@ function App() {
           <Stack>
             {segments.map((segment) => (
               <Card key={segment.name} withBorder>
-                <Title order={3}>{segment.name}</Title>
-                <Text>{Object.keys(segment.conditions).length} conditions</Text>
+                <Group position="apart">
+                  <div>
+                    <Title order={3}>{segment.name}</Title>
+                    <Text>{Object.keys(segment.conditions).length} conditions</Text>
+                  </div>
+                  <Group>
+                    <ActionIcon color="blue" onClick={() => handleExportNow(segment.name)}>
+                      <IconDownload size={16} />
+                    </ActionIcon>
+                    <ActionIcon 
+                      color="teal" 
+                      onClick={() => {
+                        setSelectedSegment(segment.name);
+                        setScheduleModalOpen(true);
+                      }}
+                    >
+                      <IconClock size={16} />
+                    </ActionIcon>
+                  </Group>
+                </Group>
               </Card>
             ))}
           </Stack>
         </>
       )}
+
+      {schedules.length > 0 && (
+        <>
+          <Title order={2} mt="xl" mb="md">Scheduled Exports</Title>
+          <Table>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>Segment</Table.Th>
+                <Table.Th>Format</Table.Th>
+                <Table.Th>Schedule</Table.Th>
+                <Table.Th>Last Run</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {schedules.map((schedule, index) => (
+                <Table.Tr key={index}>
+                  <Table.Td>{schedule.segment_name}</Table.Td>
+                  <Table.Td>{schedule.format}</Table.Td>
+                  <Table.Td>
+                    {schedule.run_time ? 
+                      `Daily at ${schedule.run_time}` : 
+                      `Every ${schedule.interval_hours} hours`}
+                  </Table.Td>
+                  <Table.Td>{schedule.last_run || 'Never'}</Table.Td>
+                </Table.Tr>
+              ))}
+            </Table.Tbody>
+          </Table>
+        </>
+      )}
+
+      <Modal 
+        opened={scheduleModalOpen} 
+        onClose={() => setScheduleModalOpen(false)}
+        title="Schedule Segment Export"
+      >
+        <Stack>
+          <Select
+            label="Export Format"
+            value={exportFormat}
+            onChange={setExportFormat}
+            data={[
+              { value: 'csv', label: 'CSV' },
+              { value: 'json', label: 'JSON' },
+              { value: 'parquet', label: 'Parquet' }
+            ]}
+          />
+          
+          <SegmentedControl
+            value={scheduleType}
+            onChange={setScheduleType}
+            data={[
+              { label: 'Every X Hours', value: 'interval' },
+              { label: 'Daily at Time', value: 'time' }
+            ]}
+          />
+
+          {scheduleType === 'interval' ? (
+            <NumberInput
+              label="Export Interval (hours)"
+              value={scheduleInterval}
+              onChange={(val) => setScheduleInterval(val)}
+              min={1}
+            />
+          ) : (
+            <TimeInput
+              label="Export Time (24h)"
+              value={scheduleTime}
+              onChange={(event) => setScheduleTime(event.currentTarget.value)}
+            />
+          )}
+          
+          <Button onClick={handleScheduleExport}>Schedule Export</Button>
+        </Stack>
+      </Modal>
     </Box>
   );
 }

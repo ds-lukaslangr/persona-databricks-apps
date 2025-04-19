@@ -1,9 +1,12 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 import pandas as pd
 import yaml
 from pathlib import Path
 import os
+from datetime import datetime, time
+import asyncio
+import json
 
 app = FastAPI()
 
@@ -19,9 +22,90 @@ app.add_middleware(
 # Load data
 df = pd.read_csv("../bank_customer_data.csv")
 
-# Create segments directory if it doesn't exist
+# Create necessary directories
 SEGMENTS_DIR = Path("segments")
 SEGMENTS_DIR.mkdir(exist_ok=True)
+EXPORTS_DIR = Path("exports")
+EXPORTS_DIR.mkdir(exist_ok=True)
+SCHEDULES_FILE = Path("schedules.json")
+
+# Initialize schedules
+if not SCHEDULES_FILE.exists():
+    with open(SCHEDULES_FILE, "w") as f:
+        json.dump([], f)
+
+def load_schedules():
+    with open(SCHEDULES_FILE, "r") as f:
+        return json.load(f)
+
+def save_schedules(schedules):
+    with open(SCHEDULES_FILE, "w") as f:
+        json.dump(schedules, f)
+
+def export_segment(segment_name, format):
+    # Load segment conditions
+    segment_file = SEGMENTS_DIR / f"{segment_name}.yaml"
+    with open(segment_file) as f:
+        segment = yaml.safe_load(f)
+    
+    # Apply conditions
+    mask = pd.Series(True, index=df.index)
+    for column, condition in segment["conditions"].items():
+        if isinstance(condition, dict):
+            if "min" in condition or "max" in condition:
+                if "min" in condition:
+                    mask &= df[column] >= condition["min"]
+                if "max" in condition:
+                    mask &= df[column] <= condition["max"]
+            elif "values" in condition:
+                mask &= df[column].isin(condition["values"])
+    
+    # Export filtered data
+    filtered_df = df[mask]
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    export_path = EXPORTS_DIR / f"{segment_name}_{timestamp}.{format}"
+    
+    if format == "csv":
+        filtered_df.to_csv(export_path, index=False)
+    elif format == "json":
+        filtered_df.to_json(export_path, orient="records")
+    elif format == "parquet":
+        filtered_df.to_parquet(export_path, index=False)
+
+async def schedule_runner():
+    while True:
+        schedules = load_schedules()
+        current_time = datetime.now()
+        current_hour = current_time.hour
+        current_minute = current_time.minute
+        
+        for schedule in schedules:
+            should_run = False
+            last_run = datetime.fromisoformat(schedule["last_run"]) if schedule["last_run"] else None
+            
+            if "run_time" in schedule:
+                # Time-based schedule
+                schedule_time = datetime.strptime(schedule["run_time"], "%H:%M").time()
+                if (current_hour == schedule_time.hour and 
+                    current_minute == schedule_time.minute and
+                    (not last_run or last_run.date() < current_time.date())):
+                    should_run = True
+            else:
+                # Interval-based schedule
+                interval_hours = schedule["interval_hours"]
+                if not last_run or (current_time - last_run).total_seconds() / 3600 >= interval_hours:
+                    should_run = True
+            
+            if should_run:
+                export_segment(schedule["segment_name"], schedule["format"])
+                schedule["last_run"] = current_time.isoformat()
+                save_schedules(schedules)
+        
+        await asyncio.sleep(60)  # Check every minute
+
+@app.on_event("startup")
+async def startup_event():
+    asyncio.create_task(schedule_runner())
 
 @app.get("/api/columns")
 def get_columns():
@@ -73,3 +157,30 @@ def get_segments():
             segment = yaml.safe_load(f)
             segments.append(segment)
     return segments
+
+@app.post("/api/schedule-export")
+async def schedule_export(data: dict):
+    schedules = load_schedules()
+    new_schedule = {
+        "segment_name": data["segment_name"],
+        "format": data["format"],
+    }
+    
+    if "run_time" in data:
+        new_schedule["run_time"] = data["run_time"]
+    else:
+        new_schedule["interval_hours"] = data["interval_hours"]
+    
+    new_schedule["last_run"] = None
+    schedules.append(new_schedule)
+    save_schedules(schedules)
+    return {"message": "Export scheduled successfully"}
+
+@app.get("/api/schedules")
+async def get_schedules():
+    return load_schedules()
+
+@app.post("/api/export-now")
+async def export_now(background_tasks: BackgroundTasks, data: dict):
+    background_tasks.add_task(export_segment, data["segment_name"], data["format"])
+    return {"message": "Export started"}

@@ -1,5 +1,0 @@
-conditions:
-  Age:
-    max: 20
-    min: 10
-name: test

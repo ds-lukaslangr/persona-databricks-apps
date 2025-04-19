@@ -1,8 +1,0 @@
-conditions:
-  Age:
-    max: 30
-    min: 10
-  Gender:
-    values:
-    - Male
-name: young males
