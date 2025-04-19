@@ -1,5 +1,6 @@
 from fastapi import FastAPI, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 import pandas as pd
 import yaml
 from pathlib import Path
@@ -13,7 +14,7 @@ app = FastAPI()
 # Enable CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],  # Vite's default port
+    allow_origins=["*"],  # Allow all origins in Databricks Apps
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -184,3 +185,6 @@ async def get_schedules():
 async def export_now(background_tasks: BackgroundTasks, data: dict):
     background_tasks.add_task(export_segment, data["segment_name"], data["format"])
     return {"message": "Export started"}
+
+# Mount static files from frontend build AFTER all API routes
+app.mount("/", StaticFiles(directory="../frontend/dist", html=True), name="static")

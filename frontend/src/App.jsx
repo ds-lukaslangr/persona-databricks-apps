@@ -54,28 +54,28 @@ function App() {
   }, [conditions]);
 
   const loadColumns = async () => {
-    const response = await axios.get('http://localhost:8000/api/columns');
+    const response = await axios.get('/api/columns');
     setColumns(response.data.columns);
   };
 
   const loadSegments = async () => {
-    const response = await axios.get('http://localhost:8000/api/segments');
+    const response = await axios.get('/api/segments');
     setSegments(response.data);
   };
 
   const loadSchedules = async () => {
-    const response = await axios.get('http://localhost:8000/api/schedules');
+    const response = await axios.get('/api/schedules');
     setSchedules(response.data);
   };
 
   const evaluateSegment = async () => {
-    const response = await axios.post('http://localhost:8000/api/evaluate-segment', conditions);
+    const response = await axios.post('/api/evaluate-segment', conditions);
     setStats(response.data);
   };
 
   const handleSaveSegment = async () => {
     if (!segmentName) return;
-    await axios.post('http://localhost:8000/api/save-segment', {
+    await axios.post('/api/save-segment', {
       name: segmentName,
       conditions
     });
@@ -84,7 +84,7 @@ function App() {
   };
 
   const handleExportNow = async (segmentName) => {
-    await axios.post('http://localhost:8000/api/export-now', {
+    await axios.post('/api/export-now', {
       segment_name: segmentName,
       format: exportFormat
     });
@@ -104,7 +104,7 @@ function App() {
       scheduleData.run_time = scheduleTime;
     }
     
-    await axios.post('http://localhost:8000/api/schedule-export', scheduleData);
+    await axios.post('/api/schedule-export', scheduleData);
     loadSchedules();
     setScheduleModalOpen(false);
   };
