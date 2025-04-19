@@ -1,8 +1,29 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Box, Button, Group, MultiSelect, NumberInput, TextInput, Title, Text, Stack, Card, ActionIcon, Modal, Select, Table, SegmentedControl } from '@mantine/core';
+import { 
+  Box, 
+  Button, 
+  Group, 
+  MultiSelect, 
+  NumberInput, 
+  TextInput, 
+  Title, 
+  Text, 
+  Stack, 
+  Card, 
+  ActionIcon, 
+  Modal, 
+  Select, 
+  Table, 
+  SegmentedControl,
+  Container,
+  Paper,
+  Transition,
+  Divider,
+  Badge
+} from '@mantine/core';
 import { TimeInput } from '@mantine/dates';
-import { IconTrash, IconDownload, IconClock } from '@tabler/icons-react';
+import { IconTrash, IconDownload, IconClock, IconPlus, IconFilter } from '@tabler/icons-react';
 
 function App() {
   const [columns, setColumns] = useState([]);
@@ -122,143 +143,214 @@ function App() {
   };
 
   return (
-    <Box p="xl">
-      <Title order={1} mb="lg">Customer Segmentation</Title>
-      
-      <Group mb="xl">
-        <MultiSelect
-          label="Add condition"
-          placeholder="Select column"
-          data={columns.map(col => ({ value: col.name, label: col.name }))}
-          value={[]}
-          onChange={(value) => {
-            if (value.length > 0) {
-              addCondition(value[value.length - 1]);
-            }
-          }}
-        />
-      </Group>
+    <Container size="xl">
+      <Box className="fade-in" py="xl">
+        <Group position="apart" mb="xl">
+          <div>
+            <Title order={1} mb="xs">Customer Segmentation</Title>
+            <Text color="dimmed">Create and manage your customer segments</Text>
+          </div>
+          <Button 
+            leftIcon={<IconPlus size={16} />}
+            variant="gradient" 
+            gradient={{ from: 'blue', to: 'cyan' }}
+            onClick={() => setSegmentName('')}
+          >
+            New Segment
+          </Button>
+        </Group>
 
-      <Stack spacing="md" mb="xl">
-        {Object.entries(conditions).map(([column, condition]) => {
-          const columnData = columns.find(c => c.name === column);
-          return (
-            <Card key={column} withBorder>
-              <Group position="apart" mb="sm">
-                <Title order={4}>{column}</Title>
-                <ActionIcon color="red" onClick={() => deleteCondition(column)}>
-                  <IconTrash size={16} />
-                </ActionIcon>
-              </Group>
-              {columnData?.type.includes('int') || columnData?.type.includes('float') ? (
-                <Group>
-                  <NumberInput
-                    label="Min"
-                    value={condition.min || ''}
-                    onChange={(value) => updateCondition(column, 'min', value)}
-                  />
-                  <NumberInput
-                    label="Max"
-                    value={condition.max || ''}
-                    onChange={(value) => updateCondition(column, 'max', value)}
-                  />
-                </Group>
-              ) : (
-                <MultiSelect
-                  label="Values"
-                  data={columnData?.unique_values?.map(v => ({ value: v, label: v })) || []}
-                  value={condition.values}
-                  onChange={(value) => updateCondition(column, 'values', value)}
-                />
-              )}
-            </Card>
-          );
-        })}
-      </Stack>
+        <Paper shadow="sm" radius="md" p="md" withBorder className="segment-container">
+          <Group mb="lg" position="apart">
+            <Title order={3}>Segment Conditions</Title>
+            <MultiSelect
+              icon={<IconFilter size={16} />}
+              label="Add condition"
+              placeholder="Select column"
+              data={columns.map(col => ({ value: col.name, label: col.name }))}
+              value={[]}
+              onChange={(value) => {
+                if (value.length > 0) {
+                  addCondition(value[value.length - 1]);
+                }
+              }}
+              searchable
+              clearable
+            />
+          </Group>
 
-      {stats && (
-        <Card withBorder mb="xl">
-          <Text>Matching customers: {stats.count} out of {stats.total} ({stats.percentage}%)</Text>
-        </Card>
-      )}
-
-      <Group>
-        <TextInput
-          placeholder="Segment name"
-          value={segmentName}
-          onChange={(e) => setSegmentName(e.currentTarget.value)}
-        />
-        <Button onClick={handleSaveSegment}>Save Segment</Button>
-      </Group>
-
-      {segments.length > 0 && (
-        <>
-          <Title order={2} mt="xl" mb="md">Saved Segments</Title>
-          <Stack>
-            {segments.map((segment) => (
-              <Card key={segment.name} withBorder>
-                <Group position="apart">
-                  <div>
-                    <Title order={3}>{segment.name}</Title>
-                    <Text>{Object.keys(segment.conditions).length} conditions</Text>
-                  </div>
-                  <Group>
-                    <ActionIcon color="blue" onClick={() => handleExportNow(segment.name)}>
-                      <IconDownload size={16} />
-                    </ActionIcon>
-                    <ActionIcon 
-                      color="teal" 
-                      onClick={() => {
-                        setSelectedSegment(segment.name);
-                        setScheduleModalOpen(true);
-                      }}
-                    >
-                      <IconClock size={16} />
-                    </ActionIcon>
-                  </Group>
-                </Group>
-              </Card>
-            ))}
+          <Stack spacing="md">
+            {Object.entries(conditions).map(([column, condition]) => {
+              const columnData = columns.find(c => c.name === column);
+              return (
+                <Transition key={column} transition="fade" mounted={true}>
+                  {(styles) => (
+                    <Card key={column} withBorder style={styles} className="card">
+                      <Group position="apart" mb="sm">
+                        <Group spacing="xs">
+                          <Title order={4}>{column}</Title>
+                          <Badge size="sm">{columnData?.type}</Badge>
+                        </Group>
+                        <ActionIcon 
+                          color="red" 
+                          variant="light"
+                          onClick={() => deleteCondition(column)}
+                        >
+                          <IconTrash size={16} />
+                        </ActionIcon>
+                      </Group>
+                      {columnData?.type.includes('int') || columnData?.type.includes('float') ? (
+                        <Group spacing="md">
+                          <NumberInput
+                            label="Min"
+                            value={condition.min || ''}
+                            onChange={(value) => updateCondition(column, 'min', value)}
+                            styles={{ input: { width: '100%' } }}
+                          />
+                          <NumberInput
+                            label="Max"
+                            value={condition.max || ''}
+                            onChange={(value) => updateCondition(column, 'max', value)}
+                            styles={{ input: { width: '100%' } }}
+                          />
+                        </Group>
+                      ) : (
+                        <MultiSelect
+                          label="Values"
+                          data={columnData?.unique_values?.map(v => ({ value: v, label: v })) || []}
+                          value={condition.values}
+                          onChange={(value) => updateCondition(column, 'values', value)}
+                          searchable
+                          clearable
+                        />
+                      )}
+                    </Card>
+                  )}
+                </Transition>
+              );
+            })}
           </Stack>
-        </>
-      )}
 
-      {schedules.length > 0 && (
-        <>
-          <Title order={2} mt="xl" mb="md">Scheduled Exports</Title>
-          <Table>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Segment</Table.Th>
-                <Table.Th>Format</Table.Th>
-                <Table.Th>Schedule</Table.Th>
-                <Table.Th>Last Run</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {schedules.map((schedule, index) => (
-                <Table.Tr key={index}>
-                  <Table.Td>{schedule.segment_name}</Table.Td>
-                  <Table.Td>{schedule.format}</Table.Td>
-                  <Table.Td>
-                    {schedule.run_time ? 
-                      `Daily at ${schedule.run_time}` : 
-                      `Every ${schedule.interval_hours} hours`}
-                  </Table.Td>
-                  <Table.Td>{schedule.last_run || 'Never'}</Table.Td>
-                </Table.Tr>
+          {stats && (
+            <Paper p="md" mt="xl" radius="md" withBorder>
+              <Group position="apart">
+                <Text weight={500}>Matching Customers</Text>
+                <Badge size="lg" variant="gradient" gradient={{ from: 'blue', to: 'cyan' }}>
+                  {stats.count} / {stats.total} ({stats.percentage}%)
+                </Badge>
+              </Group>
+            </Paper>
+          )}
+
+          <Divider my="xl" />
+
+          <Group position="right">
+            <TextInput
+              placeholder="Enter segment name"
+              value={segmentName}
+              onChange={(e) => setSegmentName(e.currentTarget.value)}
+              style={{ flex: 1 }}
+            />
+            <Button 
+              onClick={handleSaveSegment}
+              disabled={!segmentName}
+              variant="filled"
+            >
+              Save Segment
+            </Button>
+          </Group>
+        </Paper>
+
+        {segments.length > 0 && (
+          <Paper shadow="sm" radius="md" p="md" withBorder mt="xl" className="segment-container">
+            <Title order={2} mb="lg">Saved Segments</Title>
+            <Stack spacing="md">
+              {segments.map((segment) => (
+                <Card key={segment.name} withBorder className="card">
+                  <Group position="apart">
+                    <div>
+                      <Title order={3}>{segment.name}</Title>
+                      <Text color="dimmed" size="sm">
+                        {Object.keys(segment.conditions).length} conditions
+                      </Text>
+                    </div>
+                    <Group spacing="xs">
+                      <Button
+                        variant="light"
+                        leftIcon={<IconDownload size={16} />}
+                        onClick={() => handleExportNow(segment.name)}
+                      >
+                        Export
+                      </Button>
+                      <Button
+                        variant="light"
+                        leftIcon={<IconClock size={16} />}
+                        onClick={() => {
+                          setSelectedSegment(segment.name);
+                          setScheduleModalOpen(true);
+                        }}
+                      >
+                        Schedule
+                      </Button>
+                    </Group>
+                  </Group>
+                </Card>
               ))}
-            </Table.Tbody>
-          </Table>
-        </>
-      )}
+            </Stack>
+          </Paper>
+        )}
 
-      <Modal 
-        opened={scheduleModalOpen} 
+        {schedules.length > 0 && (
+          <Paper shadow="sm" radius="md" p="md" withBorder mt="xl" className="segment-container">
+            <Title order={2} mb="lg">Scheduled Exports</Title>
+            <Table highlightOnHover>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Segment</Table.Th>
+                  <Table.Th>Format</Table.Th>
+                  <Table.Th>Schedule</Table.Th>
+                  <Table.Th>Last Run</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {schedules.map((schedule, index) => (
+                  <Table.Tr key={index}>
+                    <Table.Td>{schedule.segment_name}</Table.Td>
+                    <Table.Td>
+                      <Badge>{schedule.format.toUpperCase()}</Badge>
+                    </Table.Td>
+                    <Table.Td>
+                      {schedule.run_time ? 
+                        `Daily at ${schedule.run_time}` : 
+                        `Every ${schedule.interval_hours} hours`}
+                    </Table.Td>
+                    <Table.Td>{schedule.last_run || 'Never'}</Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </Paper>
+        )}
+      </Box>
+
+      <Modal
+        opened={scheduleModalOpen}
         onClose={() => setScheduleModalOpen(false)}
         title="Schedule Segment Export"
+        size="md"
+        radius="md"
+        centered
+        padding="xl"
+        styles={{
+          inner: { padding: '20px' },
+          content: { 
+            maxWidth: '450px',
+            width: '100%',
+            margin: 'auto'
+          }
+        }}
       >
-        <Stack>
+        <Stack spacing="md">
           <Select
             label="Export Format"
             value={exportFormat}
@@ -271,6 +363,7 @@ function App() {
           />
           
           <SegmentedControl
+            fullWidth
             value={scheduleType}
             onChange={setScheduleType}
             data={[
@@ -294,10 +387,17 @@ function App() {
             />
           )}
           
-          <Button onClick={handleScheduleExport}>Schedule Export</Button>
+          <Button 
+            onClick={handleScheduleExport}
+            fullWidth
+            variant="gradient"
+            gradient={{ from: 'blue', to: 'cyan' }}
+          >
+            Schedule Export
+          </Button>
         </Stack>
       </Modal>
-    </Box>
+    </Container>
   );
 }
 
