@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Box, Button, Group, MultiSelect, NumberInput, TextInput, Title, Text, Stack, Card } from '@mantine/core';
+import { Box, Button, Group, MultiSelect, NumberInput, TextInput, Title, Text, Stack, Card, ActionIcon } from '@mantine/core';
+import { IconTrash } from '@tabler/icons-react';
 
 function App() {
   const [columns, setColumns] = useState([]);
@@ -17,6 +18,8 @@ function App() {
   useEffect(() => {
     if (Object.keys(conditions).length > 0) {
       evaluateSegment();
+    } else {
+      setStats(null);
     }
   }, [conditions]);
 
@@ -70,6 +73,14 @@ function App() {
     }));
   };
 
+  const deleteCondition = (column) => {
+    setConditions(prev => {
+      const newConditions = { ...prev };
+      delete newConditions[column];
+      return newConditions;
+    });
+  };
+
   return (
     <Box p="xl">
       <Title order={1} mb="lg">Customer Segmentation</Title>
@@ -93,7 +104,12 @@ function App() {
           const columnData = columns.find(c => c.name === column);
           return (
             <Card key={column} withBorder>
-              <Title order={4} mb="sm">{column}</Title>
+              <Group position="apart" mb="sm">
+                <Title order={4}>{column}</Title>
+                <ActionIcon color="red" onClick={() => deleteCondition(column)}>
+                  <IconTrash size={16} />
+                </ActionIcon>
+              </Group>
               {columnData?.type.includes('int') || columnData?.type.includes('float') ? (
                 <Group>
                   <NumberInput
