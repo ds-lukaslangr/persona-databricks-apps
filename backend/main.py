@@ -1,6 +1,10 @@
 from fastapi import FastAPI, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+
+from databricks import sql
+from databricks.sdk.core import Config
+
 import pandas as pd
 import yaml
 from pathlib import Path
@@ -20,8 +24,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+def sqlQuery(query: str) -> pd.DataFrame:
+    cfg = Config() # Pull environment variables for auth
+    with sql.connect(
+        server_hostname=cfg.host,
+        http_path=f"/sql/1.0/warehouses/{os.getenv('DATABRICKS_WAREHOUSE_ID')}",
+        credentials_provider=lambda: cfg.authenticate
+    ) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(query)
+            return cursor.fetchall_arrow().to_pandas()
+
 # Load data
-df = pd.read_csv("../bank_customer_data.csv")
+df = sqlQuery(f"SELECT * FROM {os.getenv('INPUT_TABLE')}")  # Replace with your SQL query
 
 # Create necessary directories
 SEGMENTS_DIR = Path("segments")
@@ -186,5 +201,8 @@ async def export_now(background_tasks: BackgroundTasks, data: dict):
     background_tasks.add_task(export_segment, data["segment_name"], data["format"])
     return {"message": "Export started"}
 
+BASE_DIR = Path(__file__).parent
+STATIC_ASSETS_PATH = BASE_DIR.parent / "frontend/static"
+
 # Mount static files from frontend build AFTER all API routes
-app.mount("/", StaticFiles(directory="../frontend/dist", html=True), name="static")
+app.mount("/", StaticFiles(directory=STATIC_ASSETS_PATH, html=True), name="static")

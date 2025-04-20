@@ -1,0 +1,5 @@
+conditions:
+  Age:
+    max: 30
+    min: 10
+name: Age
