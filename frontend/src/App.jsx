@@ -236,7 +236,7 @@ function App() {
   }, []);
 
   return (
-    <Container size="xl">
+    <Container size="xl" mt="xl">
       <Group position="apart" mb="xl">
         <div>
           <Title order={1} mb="xs">Customer Segmentation</Title>
