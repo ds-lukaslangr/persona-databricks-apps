@@ -50,6 +50,7 @@ function App() {
   const [sqlQuery, setSqlQuery] = useState('');
   const [sqlSegmentName, setSqlSegmentName] = useState('');
   const [sqlStats, setSqlStats] = useState(null);
+  const [activeSegmentType, setActiveSegmentType] = useState(null);
 
   useEffect(() => {
     loadColumns();
@@ -265,10 +266,23 @@ function App() {
               </Button>
             </Menu.Target>
             <Menu.Dropdown>
-              <Menu.Item onClick={() => setSegmentName('')}>
+              <Menu.Item onClick={() => {
+                setActiveSegmentType('conditions');
+                setSegmentName('');
+                setConditions({});
+                setStats(null);
+                setShowSqlEditor(false);
+              }}>
                 Using Conditions
               </Menu.Item>
-              <Menu.Item onClick={() => setShowSqlEditor(true)}>
+              <Menu.Item onClick={() => {
+                setActiveSegmentType('sql');
+                setShowSqlEditor(true);
+                setSqlQuery('');
+                setSqlSegmentName('');
+                setSqlStats(null);
+                setConditions({});
+              }}>
                 Using SQL Query
               </Menu.Item>
             </Menu.Dropdown>
@@ -317,106 +331,108 @@ function App() {
           </Collapse>
         </Paper>
 
-        <Paper shadow="sm" radius="md" p="md" withBorder className="segment-container">
-          <Group mb="lg" position="apart">
-            <Title order={3}>Segment Conditions</Title>
-            <MultiSelect
-              icon={<IconFilter size={16} />}
-              label="Add condition"
-              placeholder="Select column"
-              data={columns.map(col => ({ value: col.name, label: col.name }))}
-              value={[]}
-              onChange={(value) => {
-                if (value.length > 0) {
-                  addCondition(value[value.length - 1]);
-                }
-              }}
-              searchable
-              clearable
-            />
-          </Group>
+        {activeSegmentType === 'conditions' && (
+          <Paper shadow="sm" radius="md" p="md" withBorder className="segment-container">
+            <Group mb="lg" position="apart">
+              <Title order={3}>Segment Conditions</Title>
+              <MultiSelect
+                icon={<IconFilter size={16} />}
+                label="Add condition"
+                placeholder="Select column"
+                data={columns.map(col => ({ value: col.name, label: col.name }))}
+                value={[]}
+                onChange={(value) => {
+                  if (value.length > 0) {
+                    addCondition(value[value.length - 1]);
+                  }
+                }}
+                searchable
+                clearable
+              />
+            </Group>
 
-          <Stack spacing="md">
-            {Object.entries(conditions).map(([column, condition]) => {
-              const columnData = columns.find(c => c.name === column);
-              return (
-                <Transition key={column} transition="fade" mounted={true}>
-                  {(styles) => (
-                    <Card key={column} withBorder style={styles} className="card">
-                      <Group position="apart" mb="sm">
-                        <Group spacing="xs">
-                          <Title order={4}>{column}</Title>
-                          <Badge size="sm">{columnData?.type}</Badge>
+            <Stack spacing="md">
+              {Object.entries(conditions).map(([column, condition]) => {
+                const columnData = columns.find(c => c.name === column);
+                return (
+                  <Transition key={column} transition="fade" mounted={true}>
+                    {(styles) => (
+                      <Card key={column} withBorder style={styles} className="card">
+                        <Group position="apart" mb="sm">
+                          <Group spacing="xs">
+                            <Title order={4}>{column}</Title>
+                            <Badge size="sm">{columnData?.type}</Badge>
+                          </Group>
+                          <ActionIcon
+                            color="red"
+                            variant="light"
+                            onClick={() => deleteCondition(column)}
+                          >
+                            <IconTrash size={16} />
+                          </ActionIcon>
                         </Group>
-                        <ActionIcon
-                          color="red"
-                          variant="light"
-                          onClick={() => deleteCondition(column)}
-                        >
-                          <IconTrash size={16} />
-                        </ActionIcon>
-                      </Group>
-                      {columnData?.type === 'Integer' || columnData?.type === 'Float' ? (
-                        <Group spacing="md">
-                          <NumberInput
-                            label="Min"
-                            value={condition.min || ''}
-                            onChange={(value) => updateCondition(column, 'min', value)}
-                            styles={{ input: { width: '100%' } }}
+                        {columnData?.type === 'Integer' || columnData?.type === 'Float' ? (
+                          <Group spacing="md">
+                            <NumberInput
+                              label="Min"
+                              value={condition.min || ''}
+                              onChange={(value) => updateCondition(column, 'min', value)}
+                              styles={{ input: { width: '100%' } }}
+                            />
+                            <NumberInput
+                              label="Max"
+                              value={condition.max || ''}
+                              onChange={(value) => updateCondition(column, 'max', value)}
+                              styles={{ input: { width: '100%' } }}
+                            />
+                          </Group>
+                        ) : (
+                          <MultiSelect
+                            label="Values"
+                            data={columnData?.unique_values?.map(v => ({ value: v, label: v })) || []}
+                            value={condition.values}
+                            onChange={(value) => updateCondition(column, 'values', value)}
+                            searchable
+                            clearable
                           />
-                          <NumberInput
-                            label="Max"
-                            value={condition.max || ''}
-                            onChange={(value) => updateCondition(column, 'max', value)}
-                            styles={{ input: { width: '100%' } }}
-                          />
-                        </Group>
-                      ) : (
-                        <MultiSelect
-                          label="Values"
-                          data={columnData?.unique_values?.map(v => ({ value: v, label: v })) || []}
-                          value={condition.values}
-                          onChange={(value) => updateCondition(column, 'values', value)}
-                          searchable
-                          clearable
-                        />
-                      )}
-                    </Card>
-                  )}
-                </Transition>
-              );
-            })}
-          </Stack>
+                        )}
+                      </Card>
+                    )}
+                  </Transition>
+                );
+              })}
+            </Stack>
 
-          {stats && (
-            <Paper p="md" mt="xl" radius="md" withBorder>
-              <Group position="apart">
-                <Text weight={500}>Matching Customers</Text>
-                <Badge size="lg" variant="gradient" gradient={{ from: 'blue', to: 'cyan' }}>
-                  {stats.count} / {stats.total} ({stats.percentage}%)
-                </Badge>
-              </Group>
-            </Paper>
-          )}
+            {stats && (
+              <Paper p="md" mt="xl" radius="md" withBorder>
+                <Group position="apart">
+                  <Text weight={500}>Matching Customers</Text>
+                  <Badge size="lg" variant="gradient" gradient={{ from: 'blue', to: 'cyan' }}>
+                    {stats.count} / {stats.total} ({stats.percentage}%)
+                  </Badge>
+                </Group>
+              </Paper>
+            )}
 
-          <Divider my="xl" />
+            <Divider my="xl" />
 
-          <Group position="right">
-            <TextInput
-              placeholder="Enter segment name"
-              value={segmentName}
-              onChange={(e) => setSegmentName(e.currentTarget.value)}
-              style={{ flex: 1 }}
-            />
-            <Button
-              onClick={handleSaveSegment}
-              disabled={!segmentName}
-              variant="filled"
-            >
-              Save Segment
-            </Button>
-          </Group>
-        </Paper>
+            <Group position="right">
+              <TextInput
+                placeholder="Enter segment name"
+                value={segmentName}
+                onChange={(e) => setSegmentName(e.currentTarget.value)}
+                style={{ flex: 1 }}
+              />
+              <Button
+                onClick={handleSaveSegment}
+                disabled={!segmentName}
+                variant="filled"
+              >
+                Save Segment
+              </Button>
+            </Group>
+          </Paper>
+        )}
 
         {showSqlEditor && (
           <Paper shadow="sm" radius="md" p="md" withBorder className="segment-container">
