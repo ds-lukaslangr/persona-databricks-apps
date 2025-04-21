@@ -174,8 +174,76 @@ async def schedule_runner():
         
         await asyncio.sleep(60)  # Check every minute
 
+def create_default_segments():
+    # Young adults segment
+    young_adults = {
+        "name": "Young adults",
+        "conditions": {
+            "Age": {
+                "min": 18,
+                "max": 35
+            }
+        },
+        "type": "condition",
+        "creator": {
+            "name": "System",
+            "email": "lukas.langr@datasentics.com"
+        },
+        "created_at": datetime.now().isoformat()
+    }
+    
+    # Affluent customers segment
+    affluent = {
+        "name": "Affluent",
+        "conditions": {
+            "Balance": {
+                "min": 100000
+            },
+            "AvgTxnAmt_3M": {
+                "min": 1000
+            }
+        },
+        "type": "condition",
+        "creator": {
+            "name": "System",
+            "email": "lukas.langr@datasentics.com"
+        },
+        "created_at": datetime.now().isoformat()
+    }
+    
+    # New customers SQL segment
+    new_customers = {
+        "name": "New customers",
+        "query": "AccountOpenDate >= '2025-01-01'",
+        "type": "sql",
+        "creator": {
+            "name": "System",
+            "email": "lukas.langr@datasentics.com"
+        },
+        "created_at": datetime.now().isoformat()
+    }
+    
+    # Save the segments if they don't already exist
+    segments = [
+        (young_adults, "yaml"),
+        (affluent, "yaml"),
+        (new_customers, "sql")
+    ]
+    
+    for segment, format in segments:
+        file_path = SEGMENTS_DIR / f"{segment['name']}.{format}"
+        if not file_path.exists():
+            with open(file_path, "w") as f:
+                if format == "yaml":
+                    yaml.dump(segment, f)
+                else:
+                    json.dump(segment, f)
+
 @app.on_event("startup")
 async def startup_event():
+    # Create default segments
+    create_default_segments()
+    # Start the schedule runner
     asyncio.create_task(schedule_runner())
 
 @app.get("/api/user")
