@@ -21,10 +21,13 @@ import {
   Transition,
   Divider,
   Badge,
-  Collapse
+  Collapse,
+  Menu,
+  Textarea,
+  Alert
 } from '@mantine/core';
 import { TimeInput } from '@mantine/dates';
-import { IconTrash, IconDownload, IconClock, IconPlus, IconFilter, IconMessageCircle } from '@tabler/icons-react';
+import { IconTrash, IconDownload, IconClock, IconPlus, IconFilter, IconMessageCircle, IconInfoCircle } from '@tabler/icons-react';
 import { ChatWindow } from './components/ChatWindow';
 
 function App() {
@@ -42,6 +45,10 @@ function App() {
   const [scheduleTime, setScheduleTime] = useState('12:00');
   const [showMetadata, setShowMetadata] = useState(false);
   const [showChat, setShowChat] = useState(false);
+  const [showSqlEditor, setShowSqlEditor] = useState(false);
+  const [sqlQuery, setSqlQuery] = useState('');
+  const [sqlSegmentName, setSqlSegmentName] = useState('');
+  const [sqlStats, setSqlStats] = useState(null);
 
   useEffect(() => {
     loadColumns();
@@ -102,6 +109,21 @@ function App() {
     setStats(response.data);
   };
 
+  const evaluateSqlSegment = async () => {
+    try {
+      const response = await axios.post('/api/evaluate-sql-segment', {
+        query: sqlQuery
+      });
+      setSqlStats(response.data);
+    } catch (error) {
+      notifications.show({
+        title: 'Error',
+        message: error.response?.data?.detail || 'Failed to evaluate SQL query',
+        color: 'red'
+      });
+    }
+  };
+
   const handleSaveSegment = async () => {
     if (!segmentName) return;
     await axios.post('/api/save-segment', {
@@ -110,6 +132,31 @@ function App() {
     });
     loadSegments();
     setSegmentName('');
+  };
+
+  const handleSaveSqlSegment = async () => {
+    if (!sqlSegmentName || !sqlQuery) return;
+    try {
+      await axios.post('/api/save-sql-segment', {
+        name: sqlSegmentName,
+        query: sqlQuery
+      });
+      loadSegments();
+      setSqlSegmentName('');
+      setSqlQuery('');
+      setShowSqlEditor(false);
+      notifications.show({
+        title: 'Success',
+        message: 'SQL segment saved successfully',
+        color: 'green'
+      });
+    } catch (error) {
+      notifications.show({
+        title: 'Error',
+        message: error.response?.data?.detail || 'Failed to save SQL segment',
+        color: 'red'
+      });
+    }
   };
 
   const handleExportNow = async (segmentName) => {
@@ -191,14 +238,25 @@ function App() {
           >
             {showChat ? 'Hide Chat' : 'Show Chat'}
           </Button>
-          <Button
-            leftIcon={<IconPlus size={16} />}
-            variant="gradient"
-            gradient={{ from: 'blue', to: 'cyan' }}
-            onClick={() => setSegmentName('')}
-          >
-            New Segment
-          </Button>
+          <Menu>
+            <Menu.Target>
+              <Button
+                leftIcon={<IconPlus size={16} />}
+                variant="gradient"
+                gradient={{ from: 'blue', to: 'cyan' }}
+              >
+                New Segment
+              </Button>
+            </Menu.Target>
+            <Menu.Dropdown>
+              <Menu.Item onClick={() => setSegmentName('')}>
+                Using Conditions
+              </Menu.Item>
+              <Menu.Item onClick={() => setShowSqlEditor(true)}>
+                Using SQL Query
+              </Menu.Item>
+            </Menu.Dropdown>
+          </Menu>
         </Group>
       </Group>
 
@@ -344,6 +402,63 @@ function App() {
           </Group>
         </Paper>
 
+        {showSqlEditor && (
+          <Paper shadow="sm" radius="md" p="md" withBorder className="segment-container">
+            <Title order={2} mb="lg">Create SQL Segment</Title>
+            
+            <Textarea
+              label="SQL Query"
+              placeholder="Enter your SQL query"
+              minRows={4}
+              value={sqlQuery}
+              onChange={(e) => setSqlQuery(e.currentTarget.value)}
+              mb="md"
+            />
+
+            {sqlStats && (
+              <Alert icon={<IconInfoCircle size={16} />} color="blue" mb="md">
+                Query matches {sqlStats.count} customers ({sqlStats.percentage}% of total)
+              </Alert>
+            )}
+
+            <Group position="apart" mt="xl">
+              <Button
+                variant="light"
+                onClick={() => {
+                  setShowSqlEditor(false);
+                  setSqlQuery('');
+                  setSqlSegmentName('');
+                  setSqlStats(null);
+                }}
+              >
+                Cancel
+              </Button>
+              <Group>
+                <Button
+                  variant="light"
+                  onClick={evaluateSqlSegment}
+                  disabled={!sqlQuery}
+                >
+                  Test Query
+                </Button>
+                <TextInput
+                  placeholder="Enter segment name"
+                  value={sqlSegmentName}
+                  onChange={(e) => setSqlSegmentName(e.currentTarget.value)}
+                  style={{ width: '200px' }}
+                />
+                <Button
+                  onClick={handleSaveSqlSegment}
+                  disabled={!sqlSegmentName || !sqlQuery}
+                  variant="filled"
+                >
+                  Save SQL Segment
+                </Button>
+              </Group>
+            </Group>
+          </Paper>
+        )}
+
         {segments.length > 0 && (
           <Paper shadow="sm" radius="md" p="md" withBorder mt="xl" className="segment-container">
             <Title order={2} mb="lg">Saved Segments</Title>
@@ -354,7 +469,7 @@ function App() {
                     <div>
                       <Title order={3}>{segment.name}</Title>
                       <Text color="dimmed" size="sm">
-                        {Object.keys(segment.conditions).length} conditions
+                        {segment.type === 'sql' ? 'SQL Query' : `${Object.keys(segment.conditions).length} conditions`}
                       </Text>
                     </div>
                     <Group spacing="xs">

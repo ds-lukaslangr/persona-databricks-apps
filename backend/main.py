@@ -61,25 +61,34 @@ def save_schedules(schedules):
         json.dump(schedules, f)
 
 def export_segment(segment_name, format):
-    # Load segment conditions
+    # Try loading as YAML first
     segment_file = SEGMENTS_DIR / f"{segment_name}.yaml"
-    with open(segment_file) as f:
-        segment = yaml.safe_load(f)
-    
-    # Apply conditions
-    mask = pd.Series(True, index=df.index)
-    for column, condition in segment["conditions"].items():
-        if isinstance(condition, dict):
-            if "min" in condition or "max" in condition:
-                if "min" in condition:
-                    mask &= df[column] >= condition["min"]
-                if "max" in condition:
-                    mask &= df[column] <= condition["max"]
-            elif "values" in condition:
-                mask &= df[column].isin(condition["values"])
+    if segment_file.exists():
+        with open(segment_file) as f:
+            segment = yaml.safe_load(f)
+            # Apply conditions
+            mask = pd.Series(True, index=df.index)
+            for column, condition in segment["conditions"].items():
+                if isinstance(condition, dict):
+                    if "min" in condition or "max" in condition:
+                        if "min" in condition:
+                            mask &= df[column] >= condition["min"]
+                        if "max" in condition:
+                            mask &= df[column] <= condition["max"]
+                    elif "values" in condition:
+                        mask &= df[column].isin(condition["values"])
+            filtered_df = df[mask]
+    else:
+        # Try loading as SQL
+        sql_file = SEGMENTS_DIR / f"{segment_name}.sql"
+        if sql_file.exists():
+            with open(sql_file) as f:
+                segment = json.load(f)
+                filtered_df = df.query(segment["query"])
+        else:
+            raise HTTPException(status_code=404, detail="Segment not found")
     
     # Export filtered data
-    filtered_df = df[mask]
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     export_path = EXPORTS_DIR / f"{segment_name}_{timestamp}.{format}"
     
@@ -167,23 +176,64 @@ async def save_segment(data: dict):
         yaml.dump(data, f)
     return {"message": "Segment saved successfully"}
 
+@app.post("/api/save-sql-segment")
+async def save_sql_segment(data: dict):
+    segment_file = SEGMENTS_DIR / f"{data['name']}.sql"
+    with open(segment_file, "w") as f:
+        json.dump({
+            "name": data["name"],
+            "query": data["query"],
+            "type": "sql"
+        }, f)
+    return {"message": "SQL segment saved successfully"}
+
+@app.post("/api/evaluate-sql-segment")
+async def evaluate_sql_segment(data: dict):
+    try:
+        print(data["query"])
+        # Execute the SQL query against the pandas DataFrame
+        result = df.query(data["query"])
+        return {
+            "count": len(result),
+            "total": len(df),
+            "percentage": round(float(len(result)) / len(df) * 100, 2)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 @app.get("/api/segments")
 def get_segments():
     segments = []
+    # Load YAML segments
     for file in SEGMENTS_DIR.glob("*.yaml"):
         with open(file) as f:
             segment = yaml.safe_load(f)
+            segment["type"] = "condition"  # Add type to distinguish from SQL segments
             segments.append(segment)
+    
+    # Load SQL segments
+    for file in SEGMENTS_DIR.glob("*.sql"):
+        with open(file) as f:
+            segment = json.load(f)
+            segments.append(segment)
+    
     return segments
 
 @app.delete("/api/segments/{segment_name}")
 def delete_segment(segment_name: str):
+    # Try deleting YAML segment first
     segment_file = SEGMENTS_DIR / f"{segment_name}.yaml"
-    if not segment_file.exists():
-        raise HTTPException(status_code=404, detail="Segment not found")
-
-    segment_file.unlink()  # Delete the file
-    return {"message": "Segment deleted successfully"}
+    if segment_file.exists():
+        segment_file.unlink()  # Delete the file
+        return {"message": "Segment deleted successfully"}
+    
+    # Try deleting SQL segment if YAML wasn't found
+    sql_file = SEGMENTS_DIR / f"{segment_name}.sql"
+    if sql_file.exists():
+        sql_file.unlink()  # Delete the file
+        return {"message": "Segment deleted successfully"}
+    
+    raise HTTPException(status_code=404, detail="Segment not found")
 
 @app.post("/api/schedule-export")
 async def schedule_export(data: dict):
