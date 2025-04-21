@@ -171,6 +171,11 @@ function App() {
     });
   };
 
+  const deleteSegment = async (segmentName) => {
+    await axios.delete(`/api/segments/${segmentName}`);
+    loadSegments();
+  };
+
   return (
     <Container size="xl">
       <Group position="apart" mb="xl">
@@ -362,13 +367,11 @@ function App() {
                       </Button>
                       <Button
                         variant="light"
-                        leftIcon={<IconClock size={16} />}
-                        onClick={() => {
-                          setSelectedSegment(segment.name);
-                          setScheduleModalOpen(true);
-                        }}
+                        color="red"
+                        leftIcon={<IconTrash size={16} />}
+                        onClick={() => deleteSegment(segment.name)}
                       >
-                        Schedule
+                        Delete
                       </Button>
                     </Group>
                   </Group>

@@ -176,6 +176,15 @@ def get_segments():
             segments.append(segment)
     return segments
 
+@app.delete("/api/segments/{segment_name}")
+def delete_segment(segment_name: str):
+    segment_file = SEGMENTS_DIR / f"{segment_name}.yaml"
+    if not segment_file.exists():
+        raise HTTPException(status_code=404, detail="Segment not found")
+
+    segment_file.unlink()  # Delete the file
+    return {"message": "Segment deleted successfully"}
+
 @app.post("/api/schedule-export")
 async def schedule_export(data: dict):
     schedules = load_schedules()
