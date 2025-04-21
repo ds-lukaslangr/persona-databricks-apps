@@ -1,26 +1,27 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { 
-  Box, 
-  Button, 
-  Group, 
-  MultiSelect, 
-  NumberInput, 
-  TextInput, 
-  Title, 
-  Text, 
-  Stack, 
-  Card, 
-  ActionIcon, 
-  Modal, 
-  Select, 
-  Table, 
+import {
+  Box,
+  Button,
+  Group,
+  MultiSelect,
+  NumberInput,
+  TextInput,
+  Title,
+  Text,
+  Stack,
+  Card,
+  ActionIcon,
+  Modal,
+  Select,
+  Table,
   SegmentedControl,
   Container,
   Paper,
   Transition,
   Divider,
-  Badge
+  Badge,
+  Collapse
 } from '@mantine/core';
 import { TimeInput } from '@mantine/dates';
 import { IconTrash, IconDownload, IconClock, IconPlus, IconFilter } from '@tabler/icons-react';
@@ -38,6 +39,7 @@ function App() {
   const [schedules, setSchedules] = useState([]);
   const [scheduleType, setScheduleType] = useState('interval');
   const [scheduleTime, setScheduleTime] = useState('12:00');
+  const [showMetadata, setShowMetadata] = useState(false);
 
   useEffect(() => {
     loadColumns();
@@ -55,7 +57,32 @@ function App() {
 
   const loadColumns = async () => {
     const response = await axios.get('/api/columns');
-    setColumns(response.data.columns);
+    const metadata = {
+      'CustomerID': { type: 'String', description: 'Unique identifier assigned to each customer (e.g. "C001")' },
+      'Name': { type: 'String', description: 'Full name of the customer' },
+      'Age': { type: 'Integer', description: 'Age of the customer in years' },
+      'Gender': { type: 'String', description: 'Gender identity of the customer ("Male", "Female", "Non-Binary")' },
+      'Location': { type: 'String', description: "Customer's primary city of residence" },
+      'AccountType': { type: 'String', description: 'Type of bank account held ("Checking" or "Savings")' },
+      'Balance': { type: 'Float', description: 'Current available balance in the account, in USD' },
+      'AccountOpenDate': { type: 'Date', description: 'Date the customer opened the account' },
+      'TxnCount_1M': { type: 'Integer', description: 'Number of transactions made in the last 1 month' },
+      'TxnCount_3M': { type: 'Integer', description: 'Number of transactions made in the last 3 months' },
+      'TxnCount_12M': { type: 'Integer', description: 'Number of transactions made in the last 12 months' },
+      'AvgTxnAmt_1M': { type: 'Float', description: 'Average dollar amount per transaction over the last 1 month' },
+      'AvgTxnAmt_3M': { type: 'Float', description: 'Average dollar amount per transaction over the last 3 months' },
+      'AvgTxnAmt_12M': { type: 'Float', description: 'Average dollar amount per transaction over the last 12 months' },
+      'TotalDeposits_3M': { type: 'Float', description: 'Total value of deposits made in the last 3 months, in USD' },
+      'TotalWithdrawals_3M': { type: 'Float', description: 'Total value of withdrawals made in the last 3 months, in USD' }
+    };
+
+    const columnsWithMetadata = response.data.columns.map(col => ({
+      ...col,
+      type: metadata[col.name]?.type || col.type,
+      description: metadata[col.name]?.description || ''
+    }));
+
+    setColumns(columnsWithMetadata);
   };
 
   const loadSegments = async () => {
@@ -92,7 +119,7 @@ function App() {
 
   const handleScheduleExport = async () => {
     if (!selectedSegment) return;
-    
+
     const scheduleData = {
       segment_name: selectedSegment,
       format: exportFormat,
@@ -103,7 +130,7 @@ function App() {
     } else {
       scheduleData.run_time = scheduleTime;
     }
-    
+
     await axios.post('/api/schedule-export', scheduleData);
     loadSchedules();
     setScheduleModalOpen(false);
@@ -111,7 +138,7 @@ function App() {
 
   const addCondition = (column) => {
     const columnData = columns.find(c => c.name === column);
-    if (columnData.type.includes('int') || columnData.type.includes('float')) {
+    if (columnData.type === 'Integer' || columnData.type === 'Float') {
       setConditions(prev => ({
         ...prev,
         [column]: { min: null, max: null }
@@ -144,21 +171,58 @@ function App() {
 
   return (
     <Container size="xl">
+
+      <Group position="apart" mb="xl">
+        <div>
+          <Title order={1} mb="xs">Customer Segmentation</Title>
+          <Text color="dimmed">Create and manage your customer segments</Text>
+        </div>
+        <Button
+          leftIcon={<IconPlus size={16} />}
+          variant="gradient"
+          gradient={{ from: 'blue', to: 'cyan' }}
+          onClick={() => setSegmentName('')}
+        >
+          New Segment
+        </Button>
+      </Group>
+
       <Box className="fade-in" py="xl">
-        <Group position="apart" mb="xl">
-          <div>
-            <Title order={1} mb="xs">Customer Segmentation</Title>
-            <Text color="dimmed">Create and manage your customer segments</Text>
-          </div>
-          <Button 
-            leftIcon={<IconPlus size={16} />}
-            variant="gradient" 
-            gradient={{ from: 'blue', to: 'cyan' }}
-            onClick={() => setSegmentName('')}
-          >
-            New Segment
-          </Button>
-        </Group>
+        <Paper shadow="sm" radius="md" p="md" withBorder mb="xl">
+          <Group position="apart">
+            <Title order={3}>Input Table Metadata</Title>
+            <Button
+              variant="subtle"
+              onClick={() => setShowMetadata(!showMetadata)}
+              rightIcon={showMetadata ? '↑' : '↓'}
+            >
+              {showMetadata ? 'Hide' : 'Show'} Metadata
+            </Button>
+          </Group>
+
+          <Collapse in={showMetadata}>
+            <Box mt="md">
+              <Table striped highlightOnHover>
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>Column Name</Table.Th>
+                    <Table.Th>Data Type</Table.Th>
+                    <Table.Th>Business Description</Table.Th>
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {columns.map((col) => (
+                    <Table.Tr key={col.name}>
+                      <Table.Td><code>{col.name}</code></Table.Td>
+                      <Table.Td>{col.type}</Table.Td>
+                      <Table.Td>{col.description}</Table.Td>
+                    </Table.Tr>
+                  ))}
+                </Table.Tbody>
+              </Table>
+            </Box>
+          </Collapse>
+        </Paper>
 
         <Paper shadow="sm" radius="md" p="md" withBorder className="segment-container">
           <Group mb="lg" position="apart">
@@ -191,15 +255,15 @@ function App() {
                           <Title order={4}>{column}</Title>
                           <Badge size="sm">{columnData?.type}</Badge>
                         </Group>
-                        <ActionIcon 
-                          color="red" 
+                        <ActionIcon
+                          color="red"
                           variant="light"
                           onClick={() => deleteCondition(column)}
                         >
                           <IconTrash size={16} />
                         </ActionIcon>
                       </Group>
-                      {columnData?.type.includes('int') || columnData?.type.includes('float') ? (
+                      {columnData?.type === 'Integer' || columnData?.type === 'Float' ? (
                         <Group spacing="md">
                           <NumberInput
                             label="Min"
@@ -251,7 +315,7 @@ function App() {
               onChange={(e) => setSegmentName(e.currentTarget.value)}
               style={{ flex: 1 }}
             />
-            <Button 
+            <Button
               onClick={handleSaveSegment}
               disabled={!segmentName}
               variant="filled"
@@ -320,8 +384,8 @@ function App() {
                       <Badge>{schedule.format.toUpperCase()}</Badge>
                     </Table.Td>
                     <Table.Td>
-                      {schedule.run_time ? 
-                        `Daily at ${schedule.run_time}` : 
+                      {schedule.run_time ?
+                        `Daily at ${schedule.run_time}` :
                         `Every ${schedule.interval_hours} hours`}
                     </Table.Td>
                     <Table.Td>{schedule.last_run || 'Never'}</Table.Td>
@@ -343,7 +407,7 @@ function App() {
         padding="xl"
         styles={{
           inner: { padding: '20px' },
-          content: { 
+          content: {
             maxWidth: '450px',
             width: '100%',
             margin: 'auto'
@@ -361,7 +425,7 @@ function App() {
               { value: 'parquet', label: 'Parquet' }
             ]}
           />
-          
+
           <SegmentedControl
             fullWidth
             value={scheduleType}
@@ -386,8 +450,8 @@ function App() {
               onChange={(event) => setScheduleTime(event.currentTarget.value)}
             />
           )}
-          
-          <Button 
+
+          <Button
             onClick={handleScheduleExport}
             fullWidth
             variant="gradient"
