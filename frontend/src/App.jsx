@@ -367,6 +367,16 @@ function App() {
                       </Button>
                       <Button
                         variant="light"
+                        leftIcon={<IconClock size={16} />}
+                        onClick={() => {
+                          setSelectedSegment(segment.name);
+                          setScheduleModalOpen(true);
+                        }}
+                      >
+                        Schedule
+                      </Button>
+                      <Button
+                        variant="light"
                         color="red"
                         leftIcon={<IconTrash size={16} />}
                         onClick={() => deleteSegment(segment.name)}
