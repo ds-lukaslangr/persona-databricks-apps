@@ -99,6 +99,50 @@ def export_segment(segment_name, format):
     elif format == "parquet":
         filtered_df.to_parquet(export_path, index=False)
 
+async def export_segment(segment_name: str, format: str = 'csv', destination: str = 'none'):
+    # Get the current timestamp
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    
+    # Load and process the segment data
+    df = load_segment_data(segment_name)
+    
+    # Generate the export filename
+    filename = f"{segment_name}_{timestamp}.{format}"
+    filepath = os.path.join('exports', filename)
+    
+    # Export the data in the requested format
+    if format == 'csv':
+        df.to_csv(filepath, index=False)
+    elif format == 'json':
+        df.to_json(filepath, orient='records')
+    elif format == 'parquet':
+        df.to_parquet(filepath, index=False)
+    
+    # Handle different export destinations
+    if destination == 'salesforce':
+        await export_to_salesforce(df, segment_name)
+    elif destination == 'facebook':
+        await export_to_facebook(df, segment_name)
+    elif destination == 'google_ads':
+        await export_to_google_ads(df, segment_name)
+    
+    return {"status": "success", "file": filename}
+
+async def export_to_salesforce(df: pd.DataFrame, segment_name: str):
+    # TODO: Implement Salesforce export logic
+    logger.info(f"Exporting {segment_name} to Salesforce")
+    pass
+
+async def export_to_facebook(df: pd.DataFrame, segment_name: str):
+    # TODO: Implement Facebook export logic
+    logger.info(f"Exporting {segment_name} to Facebook")
+    pass
+
+async def export_to_google_ads(df: pd.DataFrame, segment_name: str):
+    # TODO: Implement Google Ads export logic
+    logger.info(f"Exporting {segment_name} to Google Ads")
+    pass
+
 async def schedule_runner():
     while True:
         schedules = load_schedules()
@@ -263,31 +307,51 @@ def delete_segment(segment_name: str):
     raise HTTPException(status_code=404, detail="Segment not found")
 
 @app.post("/api/schedule-export")
-async def schedule_export(data: dict):
-    schedules = load_schedules()
-    new_schedule = {
-        "segment_name": data["segment_name"],
-        "format": data["format"],
+async def schedule_export(request: dict):
+    segment_name = request.get("segment_name")
+    format = request.get("format", "csv")
+    destination = request.get("destination", "none")
+    interval_hours = request.get("interval_hours")
+    run_time = request.get("run_time")
+    
+    if not segment_name:
+        raise HTTPException(status_code=400, detail="Segment name is required")
+        
+    schedule = {
+        "segment_name": segment_name,
+        "format": format,
+        "destination": destination,
+        "last_run": None
     }
     
-    if "run_time" in data:
-        new_schedule["run_time"] = data["run_time"]
+    if interval_hours:
+        schedule["interval_hours"] = interval_hours
+    elif run_time:
+        schedule["run_time"] = run_time
     else:
-        new_schedule["interval_hours"] = data["interval_hours"]
+        raise HTTPException(status_code=400, detail="Either interval_hours or run_time must be provided")
     
-    new_schedule["last_run"] = None
-    schedules.append(new_schedule)
-    save_schedules(schedules)
-    return {"message": "Export scheduled successfully"}
+    # Load existing schedules and append the new one
+    current_schedules = load_schedules()
+    current_schedules.append(schedule)
+    save_schedules(current_schedules)
+    
+    return {"status": "success"}
 
 @app.get("/api/schedules")
 async def get_schedules():
     return load_schedules()
 
 @app.post("/api/export-now")
-async def export_now(background_tasks: BackgroundTasks, data: dict):
-    background_tasks.add_task(export_segment, data["segment_name"], data["format"])
-    return {"message": "Export started"}
+async def export_now(request: dict):
+    segment_name = request.get("segment_name")
+    format = request.get("format", "csv")
+    destination = request.get("destination", "none")
+    
+    if not segment_name:
+        raise HTTPException(status_code=400, detail="Segment name is required")
+        
+    return await export_segment(segment_name, format, destination)
 
 class ChatMessage(BaseModel):
     message: str

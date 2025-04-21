@@ -40,6 +40,7 @@ function App() {
   const [selectedSegment, setSelectedSegment] = useState(null);
   const [scheduleInterval, setScheduleInterval] = useState('24');
   const [exportFormat, setExportFormat] = useState('csv');
+  const [exportDestination, setExportDestination] = useState('none');
   const [schedules, setSchedules] = useState([]);
   const [scheduleType, setScheduleType] = useState('interval');
   const [scheduleTime, setScheduleTime] = useState('12:00');
@@ -162,7 +163,8 @@ function App() {
   const handleExportNow = async (segmentName) => {
     await axios.post('/api/export-now', {
       segment_name: segmentName,
-      format: exportFormat
+      format: exportFormat,
+      destination: exportDestination
     });
   };
 
@@ -172,6 +174,7 @@ function App() {
     const scheduleData = {
       segment_name: selectedSegment,
       format: exportFormat,
+      destination: exportDestination,
     };
 
     if (scheduleType === 'interval') {
@@ -533,6 +536,7 @@ function App() {
                 <Table.Tr>
                   <Table.Th>Segment</Table.Th>
                   <Table.Th>Format</Table.Th>
+                  <Table.Th>Destination</Table.Th>
                   <Table.Th>Schedule</Table.Th>
                   <Table.Th>Last Run</Table.Th>
                 </Table.Tr>
@@ -543,6 +547,9 @@ function App() {
                     <Table.Td>{schedule.segment_name}</Table.Td>
                     <Table.Td>
                       <Badge>{schedule.format.toUpperCase()}</Badge>
+                    </Table.Td>
+                    <Table.Td>
+                      <Badge>{schedule.destination}</Badge>
                     </Table.Td>
                     <Table.Td>
                       {schedule.run_time ?
@@ -584,6 +591,18 @@ function App() {
               { value: 'csv', label: 'CSV' },
               { value: 'json', label: 'JSON' },
               { value: 'parquet', label: 'Parquet' }
+            ]}
+          />
+
+          <Select
+            label="Export Destination"
+            value={exportDestination}
+            onChange={setExportDestination}
+            data={[
+              { value: 'none', label: 'No destination (local export)' },
+              { value: 'salesforce', label: 'Salesforce' },
+              { value: 'facebook', label: 'Facebook' },
+              { value: 'google_ads', label: 'Google Ads' }
             ]}
           />
 
