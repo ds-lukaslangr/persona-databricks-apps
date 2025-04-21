@@ -8,9 +8,26 @@ import {
   ScrollArea,
   Box,
   ActionIcon,
+  Code,
 } from '@mantine/core';
 import { IconSend, IconRobot } from '@tabler/icons-react';
 import axios from 'axios';
+
+function SQLQueryMessage({ sql }) {
+  return (
+    <Code block style={{ 
+      whiteSpace: 'pre-wrap',
+      backgroundColor: '#f8f9fa',
+      padding: '1rem',
+      borderRadius: '4px',
+      fontSize: '0.9em',
+      maxHeight: '200px',
+      overflowY: 'auto'
+    }}>
+      {sql}
+    </Code>
+  );
+}
 
 export function ChatWindow() {
   const [messages, setMessages] = useState([]);
@@ -29,12 +46,26 @@ export function ChatWindow() {
 
     try {
       const response = await axios.post('/api/chat', { message: userMessage });
-      
-      // Add Genie's response to chat
-      setMessages(prev => [...prev, { 
-        text: response.data.response, 
-        isUser: false
-      }]);
+
+      // Add attachments as separate messages
+      if (response.data.attachments) {
+        response.data.attachments.forEach(attachment => {
+          let messageContent;
+          if (attachment.type === 'text') {
+            messageContent = { text: attachment.content, isUser: false };
+          } else if (attachment.type === 'query') {
+            messageContent = { 
+              sql: attachment.sql, 
+              status: attachment.status,
+              isUser: false,
+              isQuery: true
+            };
+          }
+          if (messageContent) {
+            setMessages(prev => [...prev, messageContent]);
+          }
+        });
+      }
     } catch (error) {
       setMessages(prev => [...prev, { 
         text: 'Sorry, I encountered an error. Please try again.', 
@@ -72,7 +103,11 @@ export function ChatWindow() {
                   color: message.isUser ? 'white' : 'inherit',
                 }}
               >
-                <Text>{message.text}</Text>
+                {message.isQuery ? (
+                  <SQLQueryMessage sql={message.sql} />
+                ) : (
+                  <Text>{message.text}</Text>
+                )}
               </Paper>
             </Box>
           ))}

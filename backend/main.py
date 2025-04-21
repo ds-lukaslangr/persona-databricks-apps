@@ -222,8 +222,7 @@ async def chat_with_genie(chat_message: ChatMessage):
         
         print(f"Chat message: {chat_message.message}")
         print(f"Conversation ID: {conversation_id}")
-        # Start a new conversation with the message
-        
+        # Start a new conversation with the mess 
         if conversation_id is None:
             genie_message = w.genie.start_conversation_and_wait(
                 space_id=genie_space_id,
@@ -238,10 +237,30 @@ async def chat_with_genie(chat_message: ChatMessage):
             )
 
         print(f"Response: {genie_message.as_dict()}")
-        
-        return {
-            "response": genie_message.attachments
+
+        attachments = []
+
+        for attachment in genie_message.attachments:
+            if attachment.text is not None:
+                attachments.append({
+                    "type": "text",
+                    "content": attachment.text.content,
+                })
+            elif attachment.query is not None:
+                attachments.append({
+                    "type": "query",
+                    "sql": attachment.query.query,
+                    "status": attachment.query.title,
+                })
+
+        result = {
+            "attachments": attachments
         }
+
+        print(f"Result: {result}")
+            
+        return result
+
     except Exception as e:
         print(f"Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
