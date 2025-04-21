@@ -24,7 +24,8 @@ import {
   Collapse
 } from '@mantine/core';
 import { TimeInput } from '@mantine/dates';
-import { IconTrash, IconDownload, IconClock, IconPlus, IconFilter } from '@tabler/icons-react';
+import { IconTrash, IconDownload, IconClock, IconPlus, IconFilter, IconMessageCircle } from '@tabler/icons-react';
+import { ChatWindow } from './components/ChatWindow';
 
 function App() {
   const [columns, setColumns] = useState([]);
@@ -40,6 +41,7 @@ function App() {
   const [scheduleType, setScheduleType] = useState('interval');
   const [scheduleTime, setScheduleTime] = useState('12:00');
   const [showMetadata, setShowMetadata] = useState(false);
+  const [showChat, setShowChat] = useState(false);
 
   useEffect(() => {
     loadColumns();
@@ -171,23 +173,35 @@ function App() {
 
   return (
     <Container size="xl">
-
       <Group position="apart" mb="xl">
         <div>
           <Title order={1} mb="xs">Customer Segmentation</Title>
           <Text color="dimmed">Create and manage your customer segments</Text>
         </div>
-        <Button
-          leftIcon={<IconPlus size={16} />}
-          variant="gradient"
-          gradient={{ from: 'blue', to: 'cyan' }}
-          onClick={() => setSegmentName('')}
-        >
-          New Segment
-        </Button>
+        <Group>
+          <Button
+            variant="light"
+            leftIcon={<IconMessageCircle size={16} />}
+            onClick={() => setShowChat(!showChat)}
+          >
+            {showChat ? 'Hide Chat' : 'Show Chat'}
+          </Button>
+          <Button
+            leftIcon={<IconPlus size={16} />}
+            variant="gradient"
+            gradient={{ from: 'blue', to: 'cyan' }}
+            onClick={() => setSegmentName('')}
+          >
+            New Segment
+          </Button>
+        </Group>
       </Group>
 
       <Box className="fade-in" py="xl">
+        <Collapse in={showChat} mb="xl">
+          <ChatWindow />
+        </Collapse>
+
         <Paper shadow="sm" radius="md" p="md" withBorder mb="xl">
           <Group position="apart">
             <Title order={3}>Input Table Metadata</Title>

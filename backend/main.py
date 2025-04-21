@@ -1,8 +1,9 @@
-from fastapi import FastAPI, BackgroundTasks
+from fastapi import FastAPI, BackgroundTasks, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from databricks import sql
+from databricks.sdk import WorkspaceClient
 from databricks.sdk.core import Config
 
 import pandas as pd
@@ -12,6 +13,7 @@ import os
 from datetime import datetime, time
 import asyncio
 import json
+from pydantic import BaseModel
 
 app = FastAPI()
 
@@ -200,6 +202,49 @@ async def get_schedules():
 async def export_now(background_tasks: BackgroundTasks, data: dict):
     background_tasks.add_task(export_segment, data["segment_name"], data["format"])
     return {"message": "Export started"}
+
+class ChatMessage(BaseModel):
+    message: str
+
+conversation_id: str = None
+
+@app.post("/api/chat")
+async def chat_with_genie(chat_message: ChatMessage):
+    global conversation_id
+
+    try:
+        cfg = Config()
+        genie_space_id = os.getenv('DATABRICKS_GENIE_SPACE_ID')
+        if not genie_space_id:
+            raise HTTPException(status_code=400, detail="DATABRICKS_GENIE_SPACE_ID environment variable not set")
+
+        w = WorkspaceClient()
+        
+        print(f"Chat message: {chat_message.message}")
+        print(f"Conversation ID: {conversation_id}")
+        # Start a new conversation with the message
+        
+        if conversation_id is None:
+            genie_message = w.genie.start_conversation_and_wait(
+                space_id=genie_space_id,
+                content=chat_message.message
+            )
+            conversation_id = genie_message.conversation_id
+        else:
+            genie_message = w.genie.create_message_and_wait(
+                space_id=genie_space_id,
+                conversation_id=conversation_id,
+                content=chat_message.message
+            )
+
+        print(f"Response: {genie_message.as_dict()}")
+        
+        return {
+            "response": genie_message.attachments
+        }
+    except Exception as e:
+        print(f"Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 BASE_DIR = Path(__file__).parent
 STATIC_ASSETS_PATH = BASE_DIR.parent / "frontend/static"

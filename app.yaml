@@ -13,3 +13,5 @@ env:
     valueFrom: "sql-warehouse"
   - name: INPUT_TABLE
     value: "dev.default.bank_customer_data"
+  - name: DATABRICKS_GENIE_SPACE_ID
+    value: "01f01e27f6e4104fa7aa7359d5af5f68"
