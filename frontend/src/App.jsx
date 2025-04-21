@@ -223,6 +223,14 @@ function App() {
     loadSegments();
   };
 
+  const [userInfo, setUserInfo] = useState({ name: 'Unknown', email: 'Unknown' });
+
+  useEffect(() => {
+    fetch('/api/user')
+      .then(response => response.json())
+      .then(data => setUserInfo(data));
+  }, []);
+
   return (
     <Container size="xl">
       <Group position="apart" mb="xl">
@@ -230,6 +238,11 @@ function App() {
           <Title order={1} mb="xs">Customer Segmentation</Title>
           <Text color="dimmed">Create and manage your customer segments</Text>
         </div>
+
+        <div className="user-info" style={{ padding: '8px', borderBottom: '1px solid #eee' }}>
+          <span>Current user: {userInfo.email}</span>
+        </div>
+
         <Group>
           <Button
             variant="light"
@@ -405,7 +418,7 @@ function App() {
         {showSqlEditor && (
           <Paper shadow="sm" radius="md" p="md" withBorder className="segment-container">
             <Title order={2} mb="lg">Create SQL Segment</Title>
-            
+
             <Textarea
               label="SQL Query"
               placeholder="Enter your SQL query"
@@ -466,12 +479,18 @@ function App() {
               {segments.map((segment) => (
                 <Card key={segment.name} withBorder className="card">
                   <Group position="apart">
-                    <div>
+                    <Stack spacing="xs">
                       <Title order={3}>{segment.name}</Title>
-                      <Text color="dimmed" size="sm">
-                        {segment.type === 'sql' ? 'SQL Query' : `${Object.keys(segment.conditions).length} conditions`}
-                      </Text>
-                    </div>
+                      <Group spacing="xs">
+                        <Text color="dimmed" size="sm">
+                          {segment.type === 'sql' ? 'SQL Query' : `${Object.keys(segment.conditions).length} conditions`}
+                        </Text>
+                        <Text color="dimmed" size="xs">•</Text>
+                        <Text color="dimmed" size="sm">
+                          Created by {segment.creator?.email || 'Unknown'}
+                        </Text>
+                      </Group>
+                    </Stack>
                     <Group spacing="xs">
                       <Button
                         variant="light"

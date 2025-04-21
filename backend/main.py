@@ -1,4 +1,4 @@
-from fastapi import FastAPI, BackgroundTasks, HTTPException
+from fastapi import FastAPI, BackgroundTasks, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
@@ -134,9 +134,20 @@ async def schedule_runner():
 async def startup_event():
     asyncio.create_task(schedule_runner())
 
-@app.get("/api/columns")
-def get_columns():
+@app.get("/api/user")
+async def get_user_info(request: Request):
+    user = request.headers.get("X-Forwarded-User", "Unknown")
+    email = request.headers.get("X-Forwarded-Email", "Unknown")
     return {
+        "name": user,
+        "email": email
+    }
+
+@app.get("/api/columns")
+def get_columns(request: Request):
+    return {
+        "user": request.headers.get("X-Forwarded-User", "Unknown"),
+        "email": request.headers.get("X-Forwarded-Email", "Unknown"),
         "columns": [
             {
                 "name": col,
@@ -170,21 +181,37 @@ async def evaluate_segment(conditions: dict):
     }
 
 @app.post("/api/save-segment")
-async def save_segment(data: dict):
+async def save_segment(data: dict, request: Request):
     segment_file = SEGMENTS_DIR / f"{data['name']}.yaml"
+    segment_data = {
+        "name": data["name"],
+        "conditions": data["conditions"],
+        "type": "condition",
+        "creator": {
+            "name": request.headers.get("X-Forwarded-User", "Unknown"),
+            "email": request.headers.get("X-Forwarded-Email", "Unknown")
+        },
+        "created_at": datetime.now().isoformat()
+    }
     with open(segment_file, "w") as f:
-        yaml.dump(data, f)
+        yaml.dump(segment_data, f)
     return {"message": "Segment saved successfully"}
 
 @app.post("/api/save-sql-segment")
-async def save_sql_segment(data: dict):
+async def save_sql_segment(data: dict, request: Request):
     segment_file = SEGMENTS_DIR / f"{data['name']}.sql"
+    segment_data = {
+        "name": data["name"],
+        "query": data["query"],
+        "type": "sql",
+        "creator": {
+            "name": request.headers.get("X-Forwarded-User", "Unknown"),
+            "email": request.headers.get("X-Forwarded-Email", "Unknown")
+        },
+        "created_at": datetime.now().isoformat()
+    }
     with open(segment_file, "w") as f:
-        json.dump({
-            "name": data["name"],
-            "query": data["query"],
-            "type": "sql"
-        }, f)
+        json.dump(segment_data, f)
     return {"message": "SQL segment saved successfully"}
 
 @app.post("/api/evaluate-sql-segment")
