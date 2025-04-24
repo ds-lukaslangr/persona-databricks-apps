@@ -225,6 +225,7 @@ function App() {
   const deleteSegment = async (segmentName) => {
     await axios.delete(`/api/segments/${segmentName}`);
     loadSegments();
+    loadSchedules(); // Refresh the schedules list after segment deletion
   };
 
   const deleteSchedule = async (scheduleIndex) => {
