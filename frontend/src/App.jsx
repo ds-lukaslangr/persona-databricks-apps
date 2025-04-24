@@ -227,6 +227,15 @@ function App() {
     loadSegments();
   };
 
+  const deleteSchedule = async (scheduleIndex) => {
+    try {
+      await axios.delete(`/api/schedules/${scheduleIndex}`);
+      loadSchedules(); // Refresh the schedules list
+    } catch (error) {
+      console.error("Error deleting schedule:", error);
+    }
+  };
+
   const [userInfo, setUserInfo] = useState({ name: 'Unknown', email: 'Unknown' });
 
   useEffect(() => {
@@ -555,6 +564,7 @@ function App() {
                   <Table.Th>Destination</Table.Th>
                   <Table.Th>Schedule</Table.Th>
                   <Table.Th>Last Run</Table.Th>
+                  <Table.Th>Actions</Table.Th>
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
@@ -573,6 +583,16 @@ function App() {
                         `Every ${schedule.interval_hours} hours`}
                     </Table.Td>
                     <Table.Td>{schedule.last_run || 'Never'}</Table.Td>
+                    <Table.Td>
+                      <Button
+                        variant="light"
+                        color="red"
+                        leftIcon={<IconTrash size={16} />}
+                        onClick={() => deleteSchedule(index)}
+                      >
+                        Delete
+                      </Button>
+                    </Table.Td>
                   </Table.Tr>
                 ))}
               </Table.Tbody>

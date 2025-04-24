@@ -1,4 +1,4 @@
-from fastapi import FastAPI, BackgroundTasks, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
@@ -10,7 +10,7 @@ import pandas as pd
 import yaml
 from pathlib import Path
 import os
-from datetime import datetime, time
+from datetime import datetime
 import asyncio
 import json
 from pydantic import BaseModel
@@ -130,17 +130,14 @@ async def export_segment(segment_name: str, format: str = 'csv', destination: st
 
 async def export_to_salesforce(df: pd.DataFrame, segment_name: str):
     # TODO: Implement Salesforce export logic
-    logger.info(f"Exporting {segment_name} to Salesforce")
     pass
 
 async def export_to_facebook(df: pd.DataFrame, segment_name: str):
     # TODO: Implement Facebook export logic
-    logger.info(f"Exporting {segment_name} to Facebook")
     pass
 
 async def export_to_google_ads(df: pd.DataFrame, segment_name: str):
     # TODO: Implement Google Ads export logic
-    logger.info(f"Exporting {segment_name} to Google Ads")
     pass
 
 async def schedule_runner():
@@ -362,17 +359,31 @@ def get_segments():
 def delete_segment(segment_name: str):
     # Try deleting YAML segment first
     segment_file = SEGMENTS_DIR / f"{segment_name}.yaml"
+    segment_found = False
+    
     if segment_file.exists():
         segment_file.unlink()  # Delete the file
-        return {"message": "Segment deleted successfully"}
+        segment_found = True
+    else:
+        # Try deleting SQL segment if YAML wasn't found
+        sql_file = SEGMENTS_DIR / f"{segment_name}.sql"
+        if sql_file.exists():
+            sql_file.unlink()  # Delete the file
+            segment_found = True
     
-    # Try deleting SQL segment if YAML wasn't found
-    sql_file = SEGMENTS_DIR / f"{segment_name}.sql"
-    if sql_file.exists():
-        sql_file.unlink()  # Delete the file
-        return {"message": "Segment deleted successfully"}
+    if not segment_found:
+        raise HTTPException(status_code=404, detail="Segment not found")
     
-    raise HTTPException(status_code=404, detail="Segment not found")
+    # Delete associated schedules
+    schedules = load_schedules()
+    # Keep only schedules that don't belong to the deleted segment
+    updated_schedules = [s for s in schedules if s["segment_name"] != segment_name]
+    
+    # If any schedules were removed, update the schedules file
+    if len(updated_schedules) != len(schedules):
+        save_schedules(updated_schedules)
+    
+    return {"message": "Segment and its associated schedules deleted successfully"}
 
 @app.post("/api/schedule-export")
 async def schedule_export(request: dict):
@@ -409,6 +420,21 @@ async def schedule_export(request: dict):
 @app.get("/api/schedules")
 async def get_schedules():
     return load_schedules()
+
+@app.delete("/api/schedules/{schedule_index}")
+async def delete_schedule(schedule_index: int):
+    try:
+        schedules = load_schedules()
+        if schedule_index < 0 or schedule_index >= len(schedules):
+            raise HTTPException(status_code=404, detail="Schedule not found")
+            
+        # Remove the schedule at the specified index
+        removed_schedule = schedules.pop(schedule_index)
+        save_schedules(schedules)
+        
+        return {"message": "Schedule deleted successfully", "deleted_schedule": removed_schedule}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/export-now")
 async def export_now(request: dict):
